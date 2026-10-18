@@ -98,3 +98,8 @@ __pycache__/
 *.pyc
 .venv/
 node_modules/
+
+# --- Overlay content is OURS; let it through the vendor/ rule above ---
+# The overlay deliberately mirrors upstream paths, including under vendor/.
+!overlay/**
+!overlay/**/vendor/**
