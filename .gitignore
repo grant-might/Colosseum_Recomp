@@ -104,8 +104,8 @@ node_modules/
 !overlay/**
 !overlay/**/vendor/**
 
-# --- Re-asserted LAST on purpose ---
-*.zip----------------------------------
+# --- Re-asserted LAST on purpose -------------------------------------
+*.zip
 # The !overlay/** exception above exists so the overlay can mirror upstream
 # paths including under vendor/. Git uses the LAST matching rule, so those
 # negations would also un-ignore game data and binaries dropped under
