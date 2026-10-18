@@ -1,0 +1,82 @@
+Pinned dependencies for Colosseum Recomp
+Captured 2026-10-18
+
+This file is the source of truth for what bootstrap.sh and bootstrap.bat fetch.
+Everything is pinned to a full commit hash. Nothing here tracks a branch, so the
+same three clones always produce the same tree.
+
+---------------------------------------------------------------------------
+1. ModernGekko-Template
+   repo     https://github.com/ExpansionPak/ModernGekko-Template.git
+   commit   c2553a99584b2045dbe46a70e1570994dae8beef
+   role     outer tree: Makefile, submodule pins, per-game build pipeline
+   overlay  Makefile
+
+2. ModernGekko
+   repo     https://github.com/ExpansionPak/ModernGekko.git
+   commit   edd460adad0e82b56909af1d793642c83b6d31c8
+   path     ModernGekko-Template/lib/ModernGekko   (submodule)
+   role     recompiler runtime, Dolphin chassis, launcher and runner sources
+   overlay  lib/ModernGekko/CMakeLists.txt
+            lib/ModernGekko/tools/moderngekko_launcher.cpp
+            lib/ModernGekko/tools/moderngekko_run.cpp
+            lib/ModernGekko/tools/frontend_config.cpp
+
+3. DolRecomp
+   repo     https://github.com/ExpansionPak/DolRecomp.git
+   commit   1bec3554ecc4817cf78319ca3d8a0669477f29fa
+   path     ModernGekko-Template/lib/DolRecomp   (submodule)
+   role     the recompiler: disc extraction, PowerPC to C translation
+   overlay  none, this one is used as published
+
+---------------------------------------------------------------------------
+Nested submodule, not fetched by the bootstrap scripts
+
+   RecompCore (Dolphin fork), path lib/ModernGekko/vendor/dolphin
+   repo     https://github.com/ExpansionPak/RecompCore.git
+   commit   10f7ac4fe48f74485fbc161ebf4d67242e11e671
+   branch   moderngekko-vendor
+   note     This is roughly 880 MB. A plain clone of ModernGekko does not
+            fetch it. You need it to build, so run:
+              git -C ModernGekko-Template/lib/ModernGekko submodule update \
+                  --init --depth 1 vendor/dolphin
+            or pass --with-dolphin to bootstrap.sh.
+
+---------------------------------------------------------------------------
+Why the overlay exists
+
+The five overlay files are not upstream copies. They are the working versions
+from the author's tree, taken against the commits above.
+
+   Makefile                      +7   GAMECUBE_CONTROLLERS=ON by default for this
+                                      GameCube title, forwarded to CMake
+   lib/ModernGekko/CMakeLists.txt   +5  links winhttp and bcrypt for first-run
+                                        component download on Windows
+   tools/frontend_config.cpp        +7  config header uses the product name
+   tools/moderngekko_run.cpp        +9  default game window title is branded
+   tools/moderngekko_launcher.cpp +1186  the launcher itself: branded UI, disc
+                                        selection and extraction, component
+                                        acquisition, module build with progress,
+                                        module publishing, launch
+
+Line counts against edd460a:
+
+   tools/moderngekko_launcher.cpp   1273 upstream, 2382 here, +1186 / -77
+   tools/moderngekko_run.cpp         470 upstream,  479 here,   +9 / -0
+   tools/frontend_config.cpp         497 upstream,  503 here,   +7 / -1
+   CMakeLists.txt                   1058 upstream, 1063 here,   +5 / -0
+   Makefile                           183 upstream,  190 here,   +7 / -0
+
+After the overlay is applied, lib/ModernGekko is a dirty submodule. That is
+expected. Do not commit inside it. The overlay in this repo is the record.
+
+---------------------------------------------------------------------------
+Development checkouts, recorded for reference only
+
+The author's working tree also holds standalone clones that the bootstrap does
+not use. They are listed so the snapshot is traceable:
+
+   ModernGekko   a2e4e2b
+   DolRecomp     02e27ac
+
+Nothing in this repo builds from those.
