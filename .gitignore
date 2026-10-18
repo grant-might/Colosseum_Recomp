@@ -103,3 +103,36 @@ node_modules/
 # The overlay deliberately mirrors upstream paths, including under vendor/.
 !overlay/**
 !overlay/**/vendor/**
+
+# --- Re-asserted LAST on purpose -------------------------------------
+# The !overlay/** exception above exists so the overlay can mirror upstream
+# paths including under vendor/. Git uses the LAST matching rule, so those
+# negations would also un-ignore game data and binaries dropped under
+# overlay/. These rules come after them and win, so the exception stays
+# narrow: overlay content is tracked, anything game-derived is not.
+*.iso
+*.gcm
+*.dol
+*.thp
+*.fsys
+*.gci
+*.raw
+*.gpk
+*.szs
+*.rarc
+*.adp
+*.h4m
+*.wad
+gGC6E01*
+*_recomp.dll
+*.mgm.dll
+*.dll
+*.exe
+*.lib
+*.obj
+*.o
+extracted/
+Games/
+Generated/
+orig/
+StaticRecompModules/
