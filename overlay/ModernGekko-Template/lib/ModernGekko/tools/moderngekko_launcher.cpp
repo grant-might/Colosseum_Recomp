@@ -32,8 +32,11 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <ctime>
 #include <map>
 #include <filesystem>
 #include <fstream>
@@ -612,6 +615,10 @@ bool ExtractArchive(const fs::path& archive, const fs::path& destination, SetupS
 }
 #endif
 
+// Defined with the rest of the runtime Sys handling below; declared here because the component pass
+// is the first point at which the payload that carries it exists.
+bool DeployRuntimeSys(const fs::path& user_directory, const fs::path& release_directory);
+
 // Install anything that is missing. Components already present are skipped, which is what makes this
 // safe to call on every launch. A shipped install carries the component archives beside the launcher,
 // so an archive found there is unpacked in place and nothing is fetched.
@@ -704,12 +711,200 @@ bool EnsureComponents(const fs::path& user_directory, const fs::path& release_di
       fs::remove(download, ec);
 #endif
   }
+  // The runner resolves Sys beside itself, and this is the first point where the tools payload that
+  // carries it has been unpacked. Failing here is deliberate: a Sys-less install plays with the
+  // game's patch codes silently not applied, which is the defect this step exists to end.
+  if (!DeployRuntimeSys(user_directory, release_directory))
+  {
+    std::lock_guard lock(state->mutex);
+    state->error =
+        "the runtime Sys data could not be installed beside the runner - see Logs/RuntimeSys.log. "
+        "If this install directory is read-only, unzip the download somewhere writable.";
+    return false;
+  }
   {
     std::lock_guard lock(state->mutex);
     state->phase = "Ready to recompile";
     state->complete = true;
   }
   return true;
+}
+
+// --- runtime Sys data -------------------------------------------------------------------------
+//
+// The chassis resolves Sys beside the runner's executable and nowhere else
+// (vendor/dolphin/Source/Core/Common/FileUtil.cpp CreateSysDirectoryPath: GetExeDirectory() +
+// "Sys"), so it has to be installed in the install directory, beside ColosseumRecompRun.exe. The
+// tools payload already carries part of it for the *build* - the port reads
+// Data/Sys/GameSettings/<disc>.ini as its default DOL patches - but that copy is unpacked under
+// <user>/Runtime and the runner never looks there. That is how a packaged install shipped with no
+// Sys at all, so GameSettings was never loaded and the [OnFrame] patch codes in GC6E01.ini never
+// applied.
+//
+// What the runtime opens, and therefore what is installed:
+//   GameSettings/GC6.ini      ConfigLoaders::GetGameIniFilenames("GC6E01") asks for G.ini, GC6.ini,
+//   GameSettings/GC6E01.ini   GC6E01.ini and GC6E01r0.ini; only the middle two exist upstream.
+//                             GC6.ini carries the video settings (safe texture cache, CPU cull) and
+//                             GC6E01.ini the patch codes.
+//   codehandler.bin           Core/Cheats/GeckoCode.cpp InstallCodeHandlerLocked.
+//   Shaders/                  VideoCommon/PostProcessing.cpp, and dolphin.log shows it being read
+//                             on every boot ("post-processing shader not found" before this existed).
+//   Resources/OSD_Font.ttf    VideoCommon/OnScreenUI.cpp - the only Resources file a non-Qt build
+//                             opens; the rest of that directory is Qt icons.
+//   GC/dsp_coef.bin           DSPHLE AX ucode resampling coefficients, read at ucode init.
+//
+// Not installed, because a GameCube launch never reads them: the other 1,869 GameSettings ini files
+// (not on this disc's resolution chain), the wiitdb-*/triforcetdb/totaldb.dsy title databases (Wii),
+// Wii/, Themes/, Load/, Profiles/, the GC IPL fonts and dsp_rom.bin (IPL font and DSP-LLE only), and
+// the Qt icon set under Resources/. That is the 9.2 MB developer Sys reduced to what is opened.
+constexpr std::array<std::string_view, 5> kRuntimeSysFiles = {
+    "GameSettings/GC6.ini", "GameSettings/GC6E01.ini", "codehandler.bin",
+    "Resources/OSD_Font.ttf", "GC/dsp_coef.bin"};
+constexpr std::string_view kRuntimeSysShaders = "Shaders";
+// Licence text that travels with the OSD font above. Optional: it is a notice, not a dependency.
+constexpr std::array<std::string_view, 1> kRuntimeSysOptional = {
+    "Resources/OSD_Font_VeraMono_Copyright.txt"};
+
+fs::path ToolsPayloadRoot(const fs::path& user_directory, const fs::path& release_directory)
+{
+  for (const ComponentSpec& spec : ReadComponentSpecs(release_directory))
+  {
+    if (spec.name == "tools")
+      return user_directory / "Runtime" / spec.name / spec.version;
+  }
+  return {};
+}
+
+std::string Timestamp()
+{
+  const std::time_t now = std::time(nullptr);
+  std::tm local{};
+#if defined(_WIN32)
+  localtime_s(&local, &now);
+#else
+  localtime_r(&now, &local);
+#endif
+  char text[32]{};
+  std::strftime(text, sizeof(text), "%Y-%m-%d %H:%M:%S", &local);
+  return text;
+}
+
+// Copy one file only when the destination does not have it yet. The install keeps whatever is
+// already there, so a user who dropped in a patched ini or a newer shader is never overwritten by a
+// later run - this adds, it never removes or replaces.
+bool InstallRuntimeFile(const fs::path& source, const fs::path& target, bool* copied, bool* kept)
+{
+  std::error_code ec;
+  if (fs::is_regular_file(target, ec))
+  {
+    *kept = true;
+    return true;
+  }
+  fs::create_directories(target.parent_path(), ec);
+  if (ec)
+    return false;
+  fs::copy_file(source, target, fs::copy_options::none, ec);
+  if (ec)
+    return false;
+  *copied = true;
+  return true;
+}
+
+// Install the runtime Sys set beside the runner. Runs on every launch and is idempotent: the second
+// run only stats 59 files. Returns false when a file the runtime opens is absent from the payload or
+// cannot be written, which is a packaging or permissions fault the caller has to report - a Sys-less
+// install plays, but with the game's own patch codes silently not applied.
+bool DeployRuntimeSys(const fs::path& user_directory, const fs::path& release_directory)
+{
+  const fs::path source_root =
+      ToolsPayloadRoot(user_directory, release_directory) / "vendor" / "dolphin" / "Data" / "Sys";
+  const fs::path target_root = release_directory / "Sys";
+  std::error_code ec;
+  fs::create_directories(user_directory / "Logs", ec);
+  std::ofstream log(user_directory / "Logs" / "RuntimeSys.log", std::ios::app);
+  auto note = [&](const std::string& line)
+  {
+    if (log)
+      log << Timestamp() << " [sys] " << line << '\n';
+  };
+
+  note("source = " + source_root.string());
+  note("target = " + target_root.string());
+
+  unsigned copied = 0;
+  unsigned kept = 0;
+  unsigned missing = 0;
+  unsigned shaders = 0;
+
+  auto install = [&](const fs::path& relative, bool required)
+  {
+    const fs::path source = source_root / relative;
+    if (!fs::is_regular_file(source, ec))
+    {
+      if (required)
+      {
+        ++missing;
+        note("MISSING " + relative.generic_string() + " in the tools payload");
+      }
+      return;
+    }
+    bool did_copy = false;
+    bool did_keep = false;
+    if (!InstallRuntimeFile(source, target_root / relative, &did_copy, &did_keep))
+    {
+      ++missing;
+      note("FAILED  " + relative.generic_string() + " - " + ec.message());
+      return;
+    }
+    if (did_copy)
+      ++copied;
+    if (did_keep)
+      ++kept;
+  };
+
+  for (const std::string_view name : kRuntimeSysFiles)
+    install(fs::path(std::string(name)), true);
+  for (const std::string_view name : kRuntimeSysOptional)
+    install(fs::path(std::string(name)), false);
+
+  // Shaders travel as a directory because PostProcessing resolves them by relative name; shipping the
+  // whole set means no list here can go stale against the runtime's own.
+  const fs::path shader_source = source_root / kRuntimeSysShaders;
+  if (fs::is_directory(shader_source, ec))
+  {
+    for (fs::recursive_directory_iterator it(shader_source, ec), end; !ec && it != end;
+         it.increment(ec))
+    {
+      if (!it->is_regular_file(ec))
+        continue;
+      const fs::path relative = fs::relative(it->path(), source_root, ec);
+      if (ec)
+        break;
+      bool did_copy = false;
+      bool did_keep = false;
+      if (!InstallRuntimeFile(it->path(), target_root / relative, &did_copy, &did_keep))
+      {
+        ++missing;
+        note("FAILED  " + relative.generic_string() + " - " + ec.message());
+        continue;
+      }
+      ++shaders;
+      if (did_copy)
+        ++copied;
+      if (did_keep)
+        ++kept;
+    }
+  }
+  else
+  {
+    ++missing;
+    note("MISSING Shaders/ in the tools payload");
+  }
+
+  note("files copied " + std::to_string(copied) + ", already present " + std::to_string(kept) +
+       ", missing or failed " + std::to_string(missing) + ", shaders seen " +
+       std::to_string(shaders) + (missing == 0 ? " -> complete" : " -> INCOMPLETE"));
+  return missing == 0 && shaders > 0;
 }
 
 // --- recompiled module build ---------------------------------------------------------------
@@ -1255,6 +1450,368 @@ bool BuildModule(const fs::path& game_directory, const fs::path& user_directory,
   return true;
 }
 
+// --- REL overlays ---------------------------------------------------------------------------
+//
+// The game's overlay modules are not files on the disc. Each one is a member of a Genius Sonority
+// FSYS archive under files/, tagged as a REL either by resource group 0x0E or by the REL file type
+// byte 0x1C in its member id, so a plain disc extraction produces none of them - which is why a
+// packaged install shipped with zero .rel files while the developer tree's extraction of the same
+// disc had 168. The developer workflow (.build/extract_rels.py, through the decomp's
+// tools/fsys_extract.py) parses the archives in Python; the launcher has no interpreter, so the two
+// formats are implemented here and produce byte-identical output:
+//
+//   archive header   0x00 'FSYS' | 0x0C member count | 0x18 offset of the table-of-tables
+//   table-of-tables  [0] entry-offset table, [1] member names, [2] member data
+//   member entry     0x00 id | 0x04 data offset | 0x08 unpacked size | 0x0C flags (bit 31 = LZSS)
+//                    0x14 packed size | 0x20 resource group | 0x24 name-string offset
+//   packed member    'LZSS' | unpacked size | packed size (header included) | 0, then Okumura LZSS
+//                    with N = 4096, F = 18, THRESHOLD 2, a zeroed window and r starting at 0xFEE -
+//                    the decode fn_8017F2C4 performs (see src/game/fsys/fsys_file.c in the decomp).
+//
+// The extraction runs before the module build so the build sees the overlays, and the files stay in
+// the game directory the runtime is pointed at.
+constexpr std::uint32_t kFsysRelGroup = 0x0E;
+constexpr std::uint32_t kFsysRelType = 0x1C;
+
+std::uint32_t BeU32(const unsigned char* data)
+{
+  return (static_cast<std::uint32_t>(data[0]) << 24) | (static_cast<std::uint32_t>(data[1]) << 16) |
+         (static_cast<std::uint32_t>(data[2]) << 8) | static_cast<std::uint32_t>(data[3]);
+}
+
+bool ReadWholeFile(const fs::path& path, std::vector<unsigned char>* contents)
+{
+  std::ifstream in(path, std::ios::binary);
+  if (!in)
+    return false;
+  in.seekg(0, std::ios::end);
+  const std::streamoff size = in.tellg();
+  if (size < 0)
+    return false;
+  in.seekg(0, std::ios::beg);
+  contents->resize(static_cast<std::size_t>(size));
+  if (size > 0)
+    in.read(reinterpret_cast<char*>(contents->data()), static_cast<std::streamsize>(size));
+  return static_cast<bool>(in);
+}
+
+struct FsysMember
+{
+  std::string name;
+  std::uint32_t member_id = 0;
+  std::uint32_t data_offset = 0;
+  std::uint32_t unpacked_size = 0;
+  std::uint32_t packed_size = 0;
+  std::uint32_t flags = 0;
+  std::uint32_t group = 0;
+
+  bool packed() const { return (flags & 0x80000000u) != 0; }
+  unsigned file_type() const { return (member_id >> 8) & 0xFFu; }
+};
+
+bool ParseFsys(const std::vector<unsigned char>& data, std::vector<FsysMember>* members,
+               std::string* error)
+{
+  if (data.size() < 0x40 || std::memcmp(data.data(), "FSYS", 4) != 0)
+  {
+    *error = "not an FSYS archive";
+    return false;
+  }
+  const std::uint32_t count = BeU32(data.data() + 0x0C);
+  const std::uint32_t tables = BeU32(data.data() + 0x18);
+  if (static_cast<std::uint64_t>(tables) + 4 > data.size() || count > 0x10000)
+  {
+    *error = "member table out of range";
+    return false;
+  }
+  const std::uint32_t entry_table = BeU32(data.data() + tables);
+  if (static_cast<std::uint64_t>(entry_table) + 4ull * count > data.size())
+  {
+    *error = "entry table out of range";
+    return false;
+  }
+  for (std::uint32_t index = 0; index < count; ++index)
+  {
+    const std::uint32_t entry = BeU32(data.data() + entry_table + 4 * index);
+    if (static_cast<std::uint64_t>(entry) + 0x28 > data.size())
+    {
+      *error = "member entry out of range";
+      return false;
+    }
+    const std::uint32_t name_offset = BeU32(data.data() + entry + 0x24);
+    if (name_offset >= data.size())
+    {
+      *error = "member name out of range";
+      return false;
+    }
+    std::string name;
+    for (std::size_t cursor = name_offset; cursor < data.size() && data[cursor] != 0; ++cursor)
+    {
+      if (name.size() >= 256)
+        break;
+      name.push_back(static_cast<char>(data[cursor]));
+    }
+    if (name.empty())
+    {
+      *error = "empty member name";
+      return false;
+    }
+    FsysMember member;
+    member.name = std::move(name);
+    member.member_id = BeU32(data.data() + entry + 0x00);
+    member.data_offset = BeU32(data.data() + entry + 0x04);
+    member.unpacked_size = BeU32(data.data() + entry + 0x08);
+    member.flags = BeU32(data.data() + entry + 0x0C);
+    member.packed_size = BeU32(data.data() + entry + 0x14);
+    member.group = BeU32(data.data() + entry + 0x20);
+    members->push_back(std::move(member));
+  }
+  return true;
+}
+
+// Exactly the decoder in the decomp's fn_8017F2C4: a zeroed 4 KB window, r at 0xFEE, flags refilled
+// with a 0xFF00 mask, and a match length of (low nibble + 3).
+bool DecodeLzss(const std::vector<unsigned char>& archive, const FsysMember& member,
+                std::vector<unsigned char>* out, std::string* error)
+{
+  if (static_cast<std::uint64_t>(member.data_offset) + member.packed_size > archive.size())
+  {
+    *error = "member data out of range";
+    return false;
+  }
+  const unsigned char* stream = archive.data() + member.data_offset;
+  const std::size_t stream_size = member.packed_size;
+  if (stream_size < 0x10 || std::memcmp(stream, "LZSS", 4) != 0)
+  {
+    *error = "packed member lacks an LZSS header";
+    return false;
+  }
+  if (BeU32(stream + 4) != member.unpacked_size)
+  {
+    *error = "LZSS header size disagrees with the member entry";
+    return false;
+  }
+  const std::uint32_t in_end = BeU32(stream + 8);
+  if (in_end < 0x10 || in_end > stream_size)
+  {
+    *error = "LZSS packed size out of range";
+    return false;
+  }
+  std::array<unsigned char, 0x1000> window{};
+  std::size_t window_at = 0xFEE;
+  out->clear();
+  out->reserve(member.unpacked_size);
+  std::size_t read = 0x10;
+  unsigned flags = 0;
+  auto take = [&](unsigned char* value)
+  {
+    if (read >= in_end)
+      return false;
+    *value = stream[read++];
+    return true;
+  };
+  while (out->size() < member.unpacked_size)
+  {
+    flags >>= 1;
+    if ((flags & 0x100u) == 0)
+    {
+      unsigned char value = 0;
+      if (!take(&value))
+        break;
+      flags = static_cast<unsigned>(value) | 0xFF00u;
+    }
+    if ((flags & 1u) != 0)
+    {
+      unsigned char value = 0;
+      if (!take(&value))
+        break;
+      out->push_back(value);
+      window[window_at] = value;
+      window_at = (window_at + 1) & 0xFFFu;
+      continue;
+    }
+    unsigned char low = 0;
+    unsigned char high = 0;
+    if (!take(&low) || !take(&high))
+      break;
+    const std::size_t from = static_cast<std::size_t>(low) | (static_cast<std::size_t>(high & 0xF0u) << 4);
+    const unsigned length = static_cast<unsigned>(high & 0x0Fu) + 2;
+    for (unsigned i = 0; i <= length; ++i)
+    {
+      const unsigned char value = window[(from + i) & 0xFFFu];
+      out->push_back(value);
+      window[window_at] = value;
+      window_at = (window_at + 1) & 0xFFFu;
+    }
+  }
+  if (out->size() != member.unpacked_size)
+  {
+    *error = "LZSS size mismatch: got " + std::to_string(out->size()) + ", expected " +
+             std::to_string(member.unpacked_size);
+    return false;
+  }
+  return true;
+}
+
+bool MemberContents(const std::vector<unsigned char>& archive, const FsysMember& member,
+                    std::vector<unsigned char>* out, std::string* error)
+{
+  if (!member.packed())
+  {
+    if (static_cast<std::uint64_t>(member.data_offset) + member.unpacked_size > archive.size())
+    {
+      *error = "stored member out of range";
+      return false;
+    }
+    out->assign(archive.begin() + member.data_offset,
+                archive.begin() + member.data_offset + member.unpacked_size);
+    return true;
+  }
+  return DecodeLzss(archive, member, out, error);
+}
+
+// Same sanity check the Python extractor applies: module id, section table and import table parse.
+bool LooksLikeRel(const std::vector<unsigned char>& data)
+{
+  if (data.size() < 0x40)
+    return false;
+  const std::uint32_t version = BeU32(data.data() + 0x1C);
+  const std::uint32_t sections = BeU32(data.data() + 0x0C);
+  const std::uint32_t section_info = BeU32(data.data() + 0x10);
+  const std::uint32_t import_offset = BeU32(data.data() + 0x28);
+  const std::uint32_t import_size = BeU32(data.data() + 0x2C);
+  if ((version != 1 && version != 2 && version != 3) || sections == 0 || sections >= 64)
+    return false;
+  if (static_cast<std::uint64_t>(section_info) + 8ull * sections > data.size())
+    return false;
+  if ((import_size % 8) != 0 ||
+      static_cast<std::uint64_t>(import_offset) + import_size > data.size())
+    return false;
+  for (std::uint32_t index = 0; index < sections; ++index)
+  {
+    const std::uint32_t offset = BeU32(data.data() + section_info + 8 * index) & ~1u;
+    const std::uint32_t size = BeU32(data.data() + section_info + 8 * index + 4);
+    if (size == 0)
+      continue;
+    if (static_cast<std::uint64_t>(offset) + size > data.size())
+      return false;
+  }
+  return true;
+}
+
+struct RelExtractionResult
+{
+  std::size_t archives = 0;
+  std::size_t candidates = 0;
+  std::size_t written = 0;
+  std::size_t validated = 0;
+  std::size_t failed = 0;
+  std::size_t bytes = 0;
+};
+
+std::size_t CountRelOverlays(const fs::path& game_root)
+{
+  std::error_code ec;
+  std::size_t count = 0;
+  for (fs::directory_iterator it(game_root / "files", ec), end; !ec && it != end; it.increment(ec))
+  {
+    if (it->is_regular_file(ec) && it->path().extension() == ".rel")
+      ++count;
+  }
+  return count;
+}
+
+RelExtractionResult ExtractRelOverlays(const fs::path& game_root)
+{
+  RelExtractionResult result;
+  const fs::path files = game_root / "files";
+  std::error_code ec;
+  std::vector<fs::path> archives;
+  for (fs::directory_iterator it(files, ec), end; !ec && it != end; it.increment(ec))
+  {
+    if (it->is_regular_file(ec) && it->path().extension() == ".fsys")
+      archives.push_back(it->path());
+  }
+  std::sort(archives.begin(), archives.end());
+
+  for (const fs::path& path : archives)
+  {
+    std::vector<unsigned char> archive;
+    if (!ReadWholeFile(path, &archive))
+    {
+      ++result.failed;
+      continue;
+    }
+    std::vector<FsysMember> members;
+    std::string error;
+    if (!ParseFsys(archive, &members, &error))
+    {
+      ++result.failed;
+      continue;
+    }
+    ++result.archives;
+    for (const FsysMember& member : members)
+    {
+      // Group 0x0E is what the game tests before it loads a module as a REL; the type byte catches
+      // the members whose group is not set. The developer script accepts either, so this does too.
+      if (member.group != kFsysRelGroup && member.file_type() != kFsysRelType)
+        continue;
+      ++result.candidates;
+      std::vector<unsigned char> contents;
+      if (!MemberContents(archive, member, &contents, &error))
+      {
+        ++result.failed;
+        continue;
+      }
+      if (LooksLikeRel(contents))
+        ++result.validated;
+      std::ofstream out(files / (member.name + ".rel"), std::ios::binary | std::ios::trunc);
+      if (!out)
+      {
+        ++result.failed;
+        continue;
+      }
+      if (!contents.empty())
+        out.write(reinterpret_cast<const char*>(contents.data()),
+                  static_cast<std::streamsize>(contents.size()));
+      if (!out)
+      {
+        ++result.failed;
+        continue;
+      }
+      ++result.written;
+      result.bytes += contents.size();
+    }
+  }
+  return result;
+}
+
+// Run the overlay step and record what it did. The log line is the evidence a packaged install can be
+// checked from without launching the game: "REL overlays: none found" is the failure that used to
+// ship unnoticed, and the marker strings are grepped for by the bundle builder.
+bool EnsureRelOverlays(const fs::path& game_root, const fs::path& user_directory,
+                       std::string_view stage)
+{
+  const RelExtractionResult result = ExtractRelOverlays(game_root);
+  std::error_code ec;
+  fs::create_directories(user_directory / "Logs", ec);
+  std::ofstream log(user_directory / "Logs" / "GameExtraction.log", std::ios::app);
+  if (log)
+  {
+    log << Timestamp() << " [rels] " << stage << " root=" << game_root.string() << '\n'
+        << Timestamp() << " [rels] archives=" << result.archives
+        << " candidates=" << result.candidates << " written=" << result.written
+        << " validated=" << result.validated << " failed=" << result.failed
+        << " bytes=" << result.bytes
+        << (result.written == 0 ? " REL overlays: none found" : " REL overlays extracted")
+        << '\n';
+  }
+  const std::size_t present = CountRelOverlays(game_root);
+  if (log)
+    log << Timestamp() << " [rels] present in files/= " << present << '\n';
+  return present > 0;
+}
+
 std::optional<fs::path> PrepareDisc(const fs::path& image, const fs::path& user_directory,
                                     const fs::path& release_directory, ExtractionState* state,
                                     std::string* error)
@@ -1379,6 +1936,11 @@ bool ExtractDisc(const fs::path& image, const fs::path& user_directory,
     std::string patch_error;
     if (!ApplyBundledDolPatch(output, release_directory, &changed, &patch_error))
       return fail("existing extraction patching failed: " + patch_error);
+    // An extraction made before this step existed has no overlays, and the runtime reads them during
+    // play, so complete it in place rather than making the user re-extract the whole disc. Logged, not
+    // fatal: the existing extraction is otherwise usable and the log names what is missing.
+    if (CountRelOverlays(output) == 0)
+      EnsureRelOverlays(output, user_directory, "existing");
   }
   const auto existing = moderngekko::InspectGame(output);
   if (existing && RequiredGameError(*existing.metadata).empty())
@@ -1426,6 +1988,18 @@ bool ExtractDisc(const fs::path& image, const fs::path& user_directory,
 
   bool dol_changed = false;
   std::string dol_patch_error;
+  {
+    std::lock_guard lock(state->mutex);
+    state->status = "Extracting REL overlays";
+  }
+  // Fatal on a fresh extraction, unlike the repair path above: this is the step that decides what a
+  // new install contains, and an install without overlays is the defect this exists to prevent.
+  if (!EnsureRelOverlays(staging, user_directory, "extract"))
+  {
+    fs::remove_all(staging, ec);
+    return fail("the disc extraction produced no REL overlays - the game directory would run "
+                "without them; see Logs/GameExtraction.log");
+  }
   if (!ApplyBundledDolPatch(staging, release_directory, &dol_changed, &dol_patch_error))
   {
     fs::remove_all(staging, ec);
@@ -1517,7 +2091,7 @@ int main(int argc, char** argv)
     if (!success)
       std::cerr << "component fetch failed: " << setup.error << '\n';
     else
-      std::cout << "components ready\n";
+      std::cout << "components ready; runtime Sys at " << (release_directory / "Sys").string() << '\n';
     return success ? 0 : 1;
   }
   if (extract_only)

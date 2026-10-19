@@ -17,7 +17,7 @@ The module is built from your image on your machine. It is cached against the DO
 
 ## What you download
 
-One archive, `colosseum-launcher-1.zip`, 207.4 MiB. Everything the launcher needs to build is inside it, and none of it touches the network.
+One archive, `colosseum-launcher-2.zip`, 207.4 MiB. Everything the launcher needs to build is inside it, and none of it touches the network.
 
 | path inside the archive | what it is |
 |---|---|
@@ -26,7 +26,7 @@ One archive, `colosseum-launcher-1.zip`, 207.4 MiB. Everything the launcher need
 | `msvcp140.dll`, `msvcp140_atomic_wait.dll`, `vcruntime140.dll`, `vcruntime140_1.dll` | the MSVC runtime the two exes import, deployed app-local |
 | `components.txt` | what the two component archives are, with the digest of each |
 | `colosseum-toolchain-16.2.0-ucrt-r3.zip` | GCC 16.2.0 (winlibs, UCRT, MinGW-w64 14.0.0), CMake 4.4.3, Ninja 1.13.2, CPython 3.13.16 |
-| `colosseum-tools-3.zip` | `moderngekko-port.exe`, `dolrecomp.exe`, the module template, GXRuntime, the StaticRecomp ABI headers |
+| `colosseum-tools-4.zip` | `moderngekko-port.exe`, `dolrecomp.exe`, the module template, GXRuntime, the StaticRecomp ABI headers |
 | `licences/` | the GPL-3.0 text, an index of what covers what, and a written offer of source |
 | `THIRD-PARTY-NOTICES.txt` | the MSVC runtime notice |
 
