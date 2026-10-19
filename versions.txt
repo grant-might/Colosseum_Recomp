@@ -36,6 +36,9 @@ Nested submodule, not fetched by the bootstrap scripts
    repo     https://github.com/ExpansionPak/RecompCore.git
    commit   10f7ac4fe48f74485fbc161ebf4d67242e11e671
    branch   moderngekko-vendor
+   role     DiscIO, the Dolphin chassis, GXRuntime, the module template
+   overlay  eleven files under lib/ModernGekko/vendor/dolphin/, all of them
+            listed under "Why the overlay exists" below
    note     This is roughly 880 MB. A plain clone of ModernGekko does not
             fetch it. You need it to build, so run:
               git -C ModernGekko-Template/lib/ModernGekko submodule update \
@@ -45,30 +48,49 @@ Nested submodule, not fetched by the bootstrap scripts
 ---------------------------------------------------------------------------
 Why the overlay exists
 
-The five overlay files are not upstream copies. They are the working versions
-from the author's tree, taken against the commits above.
+The sixteen overlay files are not upstream copies. They are the working versions
+from the author's tree, taken against the commits above. Fifteen are source and
+build files and one is a game settings file. Every one of them carries a line
+saying it was modified by Colosseum Recomp on 2026-10-18, which is what GPL-3.0
+section 5(a) asks for.
 
-   Makefile                      +7   GAMECUBE_CONTROLLERS=ON by default for this
-                                      GameCube title, forwarded to CMake
-   lib/ModernGekko/CMakeLists.txt   +5  links winhttp and bcrypt for first-run
-                                        component download on Windows
-   tools/frontend_config.cpp        +7  config header uses the product name
-   tools/moderngekko_run.cpp        +9  default game window title is branded
-   tools/moderngekko_launcher.cpp +1186  the launcher itself: branded UI, disc
-                                        selection and extraction, component
-                                        acquisition, module build with progress,
-                                        module publishing, launch
+Five came in with the first commit, 8b12429:
 
-Line counts against edd460a:
+   Makefile                        +8 -1   GAMECUBE_CONTROLLERS=ON by default for
+                                          this GameCube title, forwarded to CMake
+   lib/ModernGekko/CMakeLists.txt  +5 -0   links winhttp and bcrypt on Windows
+   tools/frontend_config.cpp       +7 -1   config header uses the product name
+   tools/moderngekko_run.cpp       +9 -0   default game window title is branded
+   tools/moderngekko_launcher.cpp +1218 -78  the launcher itself: branded UI, disc
+                                          selection and extraction, component
+                                          install from the archives beside the
+                                          launcher, module build with progress,
+                                          module publishing, launch
 
-   tools/moderngekko_launcher.cpp   1273 upstream, 2382 here, +1186 / -77
-   tools/moderngekko_run.cpp         470 upstream,  479 here,   +9 / -0
-   tools/frontend_config.cpp         497 upstream,  503 here,   +7 / -1
-   CMakeLists.txt                   1058 upstream, 1063 here,   +5 / -0
-   Makefile                           183 upstream,  190 here,   +7 / -0
+Eleven came in with commit dbb6dd0, all under
+lib/ModernGekko/vendor/dolphin/:
 
-After the overlay is applied, lib/ModernGekko is a dirty submodule. That is
-expected. Do not commit inside it. The overlay in this repo is the record.
+   Data/Sys/GameSettings/GC6E01.ini   +28 -0   game specific patch metadata:
+                                          memory card OnFrame patches, a disabled
+                                          data cache patch kept as notes, 16:9
+                                          and 60 fps ActionReplay codes
+   GXRuntime/include/core/cpu.h        +16 -0   CPU support ABI
+   GXRuntime/src/core/cpu.c            +26 -0   CPU support ABI
+   module-template/CMakeLists.txt      +66 -1   prefer a bundled interpreter
+   module-template/gen_module_tables.py +588 -58  generated ABI tables
+   module-template/module_export.c     +19 -2   module export glue
+   Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.cpp     +19 -0
+   Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore.h       +39 -0
+   Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Hooks.cpp +25 -0
+   Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_Run.cpp +138 -2
+   Source/Core/Core/PowerPC/StaticRecomp/StaticRecompCore_SMC.cpp +92 -37
+
+The counts are against the pinned commits. They leave out the one line each file
+gains from the modification notice.
+
+After the overlay is applied, lib/ModernGekko and lib/ModernGekko/vendor/dolphin
+are dirty submodules. That is expected. Do not commit inside them. The overlay in
+this repo is the record.
 
 ---------------------------------------------------------------------------
 Development checkouts, recorded for reference only

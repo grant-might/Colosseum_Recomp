@@ -1,3 +1,4 @@
+// Modified by Colosseum Recomp on 2026-10-18, see NOTICE.md.
 #include "frontend_config.hpp"
 #include "dol_patch.hpp"
 #include "launcher_savestates.hpp"
@@ -337,7 +338,7 @@ struct ComponentSpec
 {
   std::string name;     // directory under <user dir>/Runtime
   std::string version;  // part of the path; bumping it forces a re-fetch
-  std::string url;
+  std::string archive;  // archive beside the launcher; a URL is still accepted and downloaded
   std::string sha256;   // lowercase hex of the archive
   std::string probe;    // file whose presence means the component is usable
 };
@@ -611,8 +612,9 @@ bool ExtractArchive(const fs::path& archive, const fs::path& destination, SetupS
 }
 #endif
 
-// Fetch anything that is missing. Components already present are skipped, which is what makes this
-// safe to call on every launch.
+// Install anything that is missing. Components already present are skipped, which is what makes this
+// safe to call on every launch. A shipped install carries the component archives beside the launcher,
+// so an archive found there is unpacked in place and nothing is fetched.
 bool EnsureComponents(const fs::path& user_directory, const fs::path& release_directory,
                       SetupState* state)
 {
@@ -631,13 +633,29 @@ bool EnsureComponents(const fs::path& user_directory, const fs::path& release_di
     if (fs::is_regular_file(root / spec.probe, ec))
       continue;
 
+    // Where the bytes come from is decided by what is beside the launcher, not by a URL. A bundled
+    // archive is read where it lies and must survive this call: it belongs to the install, and the
+    // next user directory needs the same file, so it is never deleted the way a temp copy is.
+    const fs::path bundled = release_directory / spec.archive;
+    const bool from_bundle = fs::is_regular_file(bundled, ec);
+    const bool hosted = spec.archive.find("://") != std::string::npos;
+    if (!from_bundle && !hosted)
     {
       std::lock_guard lock(state->mutex);
-      state->phase = "Downloading " + spec.name + " " + spec.version;
+      state->error = "the " + spec.name + " archive " + spec.archive +
+                     " is missing beside the launcher - reinstall from the original download";
+      return false;
+    }
+    // Downloads land in the user directory, never in the install directory.
+    const fs::path download = runtime / (spec.name + "-" + spec.version + ".zip");
+    const fs::path archive = from_bundle ? bundled : download;
+
+    {
+      std::lock_guard lock(state->mutex);
+      state->phase = (from_bundle ? "Unpacking " : "Downloading ") + spec.name + " " + spec.version;
     }
     state->received = 0;
     state->total = 0;
-    const fs::path archive = runtime / (spec.name + "-" + spec.version + ".zip");
 #if !defined(_WIN32)
     {
       std::lock_guard lock(state->mutex);
@@ -645,26 +663,28 @@ bool EnsureComponents(const fs::path& user_directory, const fs::path& release_di
       return false;
     }
 #else
-    if (!DownloadFile(spec.url, archive, state))
+    if (!from_bundle && !DownloadFile(spec.archive, download, state))
       return false;
 
     {
       std::lock_guard lock(state->mutex);
       state->phase = "Verifying " + spec.name;
     }
+    // Always the file that is about to be extracted: the bundled archive's digest is pinned too.
     const std::string digest = Sha256Hex(archive);
     if (digest.empty())
     {
       std::lock_guard lock(state->mutex);
-      state->error = "could not compute the digest of the downloaded " + spec.name;
+      state->error = "could not compute the digest of the " + spec.name + " archive";
       return false;
     }
     if (digest != spec.sha256)
     {
       std::lock_guard lock(state->mutex);
-      state->error = "the downloaded " + spec.name +
-                     " did not match its pinned digest - refusing to use it";
-      fs::remove(archive, ec);
+      state->error = "the " + spec.name +
+                     " archive did not match its pinned digest - refusing to use it";
+      if (!from_bundle)
+        fs::remove(download, ec);
       return false;
     }
 
@@ -677,10 +697,11 @@ bool EnsureComponents(const fs::path& user_directory, const fs::path& release_di
     if (!fs::is_regular_file(root / spec.probe, ec))
     {
       std::lock_guard lock(state->mutex);
-      state->error = "the downloaded " + spec.name + " did not contain " + spec.probe;
+      state->error = "the " + spec.name + " archive did not contain " + spec.probe;
       return false;
     }
-    fs::remove(archive, ec);
+    if (!from_bundle)
+      fs::remove(download, ec);
 #endif
   }
   {
@@ -1292,7 +1313,17 @@ std::optional<fs::path> PrepareDisc(const fs::path& image, const fs::path& user_
   }
   return output;
 #else
-  *error = "this disc is not the pinned patched release";
+  // No disc preparer is built in, so the exact-match check above is the whole policy. This message
+  // used to be inherited from another game's launcher and told the player nothing useful, so it now
+  // names the one release that is accepted and what the inserted disc actually reported.
+#if defined(MODERNGEKKO_REQUIRED_DISC_ID)
+  const std::string wanted = MODERNGEKKO_REQUIRED_DISC_ID;
+#else
+  const std::string wanted = "unset";
+#endif
+  *error = "this launcher accepts only the US release of Pokemon Colosseum, game ID " + wanted +
+           " - the selected disc reported " +
+           (source_id.empty() ? std::string("no game ID") : source_id);
   return std::nullopt;
 #endif
 }
@@ -1476,8 +1507,9 @@ int main(int argc, char** argv)
   const fs::path release_directory = ExecutableDirectory(argv[0]);
   if (fetch_components)
   {
-    // Headless acquisition: fetches whatever components.txt lists and is not already present.
-    // Exists so the download, digest check and extraction can be exercised without a display.
+    // Headless acquisition: installs whatever components.txt lists and is not already present,
+    // from the archives beside the launcher. Exists so extraction can be exercised without a
+    // display, and on a machine with no network.
     SetupState setup;
     setup.running = true;
     const bool success = EnsureComponents(user_directory, release_directory, &setup);

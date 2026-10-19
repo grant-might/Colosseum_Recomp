@@ -1,3 +1,4 @@
+// Modified by Colosseum Recomp on 2026-10-18, see NOTICE.md.
 // RecompCore per-game native module export glue (game id set at build time).
 //
 // Wraps the DolRecomp-generated constant-time chunk dispatcher behind the

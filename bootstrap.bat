@@ -67,14 +67,26 @@ echo   template    %WORK%\ModernGekko-Template  %TEMPLATE_COMMIT%
 echo   moderngekko %WORK%\ModernGekko-Template\lib\ModernGekko  %MODERNGEKKO_COMMIT%
 echo   dolrecomp   %WORK%\ModernGekko-Template\lib\DolRecomp  %DOLRECOMP_COMMIT%
 echo.
-echo files replaced by the overlay:
+echo sixteen files replaced by the overlay:
 echo   Makefile
 echo   lib\ModernGekko\CMakeLists.txt
+echo   lib\ModernGekko\tools\frontend_config.cpp
 echo   lib\ModernGekko\tools\moderngekko_launcher.cpp
 echo   lib\ModernGekko\tools\moderngekko_run.cpp
-echo   lib\ModernGekko\tools\frontend_config.cpp
+echo   lib\ModernGekko\vendor\dolphin\Data\Sys\GameSettings\GC6E01.ini
+echo   lib\ModernGekko\vendor\dolphin\GXRuntime\include\core\cpu.h
+echo   lib\ModernGekko\vendor\dolphin\GXRuntime\src\core\cpu.c
+echo   lib\ModernGekko\vendor\dolphin\Source\Core\Core\PowerPC\StaticRecomp\StaticRecompCore.cpp
+echo   lib\ModernGekko\vendor\dolphin\Source\Core\Core\PowerPC\StaticRecomp\StaticRecompCore.h
+echo   lib\ModernGekko\vendor\dolphin\Source\Core\Core\PowerPC\StaticRecomp\StaticRecompCore_Hooks.cpp
+echo   lib\ModernGekko\vendor\dolphin\Source\Core\Core\PowerPC\StaticRecomp\StaticRecompCore_Run.cpp
+echo   lib\ModernGekko\vendor\dolphin\Source\Core\Core\PowerPC\StaticRecomp\StaticRecompCore_SMC.cpp
+echo   lib\ModernGekko\vendor\dolphin\module-template\CMakeLists.txt
+echo   lib\ModernGekko\vendor\dolphin\module-template\gen_module_tables.py
+echo   lib\ModernGekko\vendor\dolphin\module-template\module_export.c
 echo.
-echo lib\ModernGekko is now a dirty submodule. That is expected.
+echo lib\ModernGekko and lib\ModernGekko\vendor\dolphin are now dirty
+echo submodules. That is expected.
 echo Nothing was pushed and nothing was committed.
 
 endlocal

@@ -1,5 +1,6 @@
 // RecompCore: StaticRecomp CPU core - Main execution loop.
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Modified by Colosseum Recomp on 2026-10-18, see NOTICE.md.
 
 #include "Core/PowerPC/StaticRecomp/StaticRecompCore.h"
 #include "Core/System.h"
@@ -256,7 +257,7 @@ void StaticRecompCore::Run()
           // downcount. A dispatch that charged nothing (PC-switch default,
           // pure embedded data) still costs 1 so the burst always makes
           // downcount progress; this per-dispatch flush is also the
-          // dispatcher back-edge timing check — CoreTiming regains control
+          // dispatcher back-edge timing check: CoreTiming regains control
           // with at least CachedInterpreter's per-block frequency, so
           // external-interrupt latency matches stock.
           const s64 charge = -m_guest.downcount;

@@ -1,3 +1,4 @@
+# Modified by Colosseum Recomp on 2026-10-18, see NOTICE.md.
 DOLRECOMP_DIR    := lib/DolRecomp
 MODERNGEKKO_DIR  := lib/ModernGekko
 DOLRECOMP_BUILD  := $(DOLRECOMP_DIR)/build

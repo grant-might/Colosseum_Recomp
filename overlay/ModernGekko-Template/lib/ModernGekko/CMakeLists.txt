@@ -1,3 +1,4 @@
+# Modified by Colosseum Recomp on 2026-10-18, see NOTICE.md.
 cmake_minimum_required(VERSION 3.20)
 if(APPLE)
     project(ModernGekko LANGUAGES C CXX OBJCXX)

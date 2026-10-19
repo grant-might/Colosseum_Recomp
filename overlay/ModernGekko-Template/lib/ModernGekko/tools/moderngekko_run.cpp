@@ -1,3 +1,4 @@
+// Modified by Colosseum Recomp on 2026-10-18, see NOTICE.md.
 #include "cache_affinity.hpp"
 #include "frontend_config.hpp"
 #include "dol_patch.hpp"

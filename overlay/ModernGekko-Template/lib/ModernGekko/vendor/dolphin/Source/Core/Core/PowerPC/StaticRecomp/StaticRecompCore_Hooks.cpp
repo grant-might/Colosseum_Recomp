@@ -1,5 +1,6 @@
 // RecompCore: StaticRecomp CPU core - Memory and instruction fallback HLE hooks.
 // SPDX-License-Identifier: GPL-2.0-or-later
+// Modified by Colosseum Recomp on 2026-10-18, see NOTICE.md.
 
 #include "Core/PowerPC/StaticRecomp/StaticRecompCore.h"
 #include "Core/System.h"

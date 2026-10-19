@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Modified by Colosseum Recomp on 2026-10-18, see NOTICE.md.
 """Generate module_tables.inc for a dolphin-chassis static recompilation module.
 
 Parses the generated dispatcher's coverage ranges out of generated.h. Both

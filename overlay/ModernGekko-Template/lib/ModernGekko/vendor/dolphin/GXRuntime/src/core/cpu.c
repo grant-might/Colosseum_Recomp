@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+// Modified by Colosseum Recomp on 2026-10-18, see NOTICE.md.
 #include "core/cpu.h"
 #include <stdio.h>
 #include <stdlib.h>
