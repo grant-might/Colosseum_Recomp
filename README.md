@@ -4,6 +4,8 @@ A Windows launcher that turns your own Pokemon Colosseum disc into a native buil
 
 This repo does not contain the game. It has the launcher source and the seventeen modified upstream files the launcher is built from. You supply the disc.
 
+Not affiliated with, endorsed by, or sponsored by Nintendo, Creatures, GAME FREAK, or The Pokémon Company.
+
 ## What it does
 
 1. You pick a disc image.
