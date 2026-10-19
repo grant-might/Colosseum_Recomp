@@ -2,7 +2,7 @@
 
 A Windows launcher that turns your own Pokemon Colosseum disc into a native build and runs it.
 
-This repo does not contain the game. It has the launcher source and the sixteen modified upstream files the launcher is built from. You supply the disc.
+This repo does not contain the game. It has the launcher source and the seventeen modified upstream files the launcher is built from. You supply the disc.
 
 ## What it does
 
@@ -24,7 +24,7 @@ One archive, `colosseum-launcher-1.zip`, 207.4 MiB. Everything the launcher need
 | `msvcp140.dll`, `msvcp140_atomic_wait.dll`, `vcruntime140.dll`, `vcruntime140_1.dll` | the MSVC runtime the two exes import, deployed app-local |
 | `components.txt` | what the two component archives are, with the digest of each |
 | `colosseum-toolchain-16.2.0-ucrt-r3.zip` | GCC 16.2.0 (winlibs, UCRT, MinGW-w64 14.0.0), CMake 4.4.3, Ninja 1.13.2, CPython 3.13.16 |
-| `colosseum-tools-2.zip` | `moderngekko-port.exe`, `dolrecomp.exe`, the module template, GXRuntime, the StaticRecomp ABI headers |
+| `colosseum-tools-3.zip` | `moderngekko-port.exe`, `dolrecomp.exe`, the module template, GXRuntime, the StaticRecomp ABI headers |
 | `licences/` | the GPL-3.0 text, an index of what covers what, and a written offer of source |
 | `THIRD-PARTY-NOTICES.txt` | the MSVC runtime notice |
 
@@ -136,4 +136,4 @@ The slug is the folder name under `extracted/`, taken from the ISO filename the 
 
 The game is not distributed here in any form. No disc image, no extracted files, no recompiled module. You need your own copy of the disc, and you need to make the image yourself if you have not already.
 
-The launcher links ModernGekko, which is GPL-3.0, so this project is GPL-3.0. See `LICENSE` and `NOTICE.md`. `NOTICE.md` also lists the sixteen upstream files this repo modifies and the licences those files came under.
+The launcher links ModernGekko, which is GPL-3.0, so this project is GPL-3.0. See `LICENSE` and `NOTICE.md`. `NOTICE.md` also lists the seventeen upstream files this repo modifies and the licences those files came under.

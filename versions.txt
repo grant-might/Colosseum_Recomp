@@ -19,6 +19,7 @@ same three clones always produce the same tree.
    role     recompiler runtime, Dolphin chassis, launcher and runner sources
    overlay  lib/ModernGekko/CMakeLists.txt
             lib/ModernGekko/tools/moderngekko_launcher.cpp
+            lib/ModernGekko/tools/moderngekko_port.cpp
             lib/ModernGekko/tools/moderngekko_run.cpp
             lib/ModernGekko/tools/frontend_config.cpp
 
@@ -48,8 +49,8 @@ Nested submodule, not fetched by the bootstrap scripts
 ---------------------------------------------------------------------------
 Why the overlay exists
 
-The sixteen overlay files are not upstream copies. They are the working versions
-from the author's tree, taken against the commits above. Fifteen are source and
+The seventeen overlay files are not upstream copies. They are the working versions
+from the author's tree, taken against the commits above. Sixteen are source and
 build files and one is a game settings file. Every one of them carries a line
 saying it was modified by Colosseum Recomp on 2026-10-18, which is what GPL-3.0
 section 5(a) asks for.
@@ -66,6 +67,15 @@ Five came in with the first commit, 8b12429:
                                           install from the archives beside the
                                           launcher, module build with progress,
                                           module publishing, launch
+
+One more came in later, on top of the pinned ModernGekko commit rather than in a
+commit of its own:
+
+   tools/moderngekko_port.cpp      +79 -1   the port resolves the module build
+                                          sources at run time beside its own
+                                          executable instead of using only the
+                                          directory compiled into it, which stays
+                                          as the development fallback
 
 Eleven came in with commit dbb6dd0, all under
 lib/ModernGekko/vendor/dolphin/:

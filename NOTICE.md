@@ -32,15 +32,19 @@ Both are "or later", so either may be used under GPLv3, and that is what happens
 
 ## What this repo changes
 
-Sixteen files. Every one is a modified copy of an upstream file, none is new. Each carries a line saying it was modified by Colosseum Recomp on 2026-10-18.
+Seventeen files. Every one is a modified copy of an upstream file, none is new. Each carries a line saying it was modified by Colosseum Recomp on 2026-10-18.
 
-Five from the ModernGekko and template trees, in commit 8b12429:
+Six from the ModernGekko and template trees. Five in commit 8b12429:
 
 - `Makefile`
 - `lib/ModernGekko/CMakeLists.txt`
 - `lib/ModernGekko/tools/moderngekko_launcher.cpp`
 - `lib/ModernGekko/tools/moderngekko_run.cpp`
 - `lib/ModernGekko/tools/frontend_config.cpp`
+
+One in a later change, on top of the ModernGekko commit `versions.txt` pins, `+79 -1`:
+
+- `lib/ModernGekko/tools/moderngekko_port.cpp`
 
 Eleven from the vendored RecompCore tree, in commit dbb6dd0:
 
@@ -84,7 +88,7 @@ To use this tool you need a disc you own and an image you made from it. Do not a
 
 ## What this repo actually contains
 
-- `overlay/`: sixteen modified files, fifteen source files and one game settings file, all listed in `versions.txt`
+- `overlay/`: seventeen modified files, sixteen source files and one game settings file, all listed in `versions.txt`
 - `bootstrap.sh`, `bootstrap.bat`: fetch the pinned upstreams and apply the overlay
 - `versions.txt`: the pinned commits and what the overlay replaces
 - `README.md`, `LICENSE`, this file

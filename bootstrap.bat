@@ -67,11 +67,12 @@ echo   template    %WORK%\ModernGekko-Template  %TEMPLATE_COMMIT%
 echo   moderngekko %WORK%\ModernGekko-Template\lib\ModernGekko  %MODERNGEKKO_COMMIT%
 echo   dolrecomp   %WORK%\ModernGekko-Template\lib\DolRecomp  %DOLRECOMP_COMMIT%
 echo.
-echo sixteen files replaced by the overlay:
+echo seventeen files replaced by the overlay:
 echo   Makefile
 echo   lib\ModernGekko\CMakeLists.txt
 echo   lib\ModernGekko\tools\frontend_config.cpp
 echo   lib\ModernGekko\tools\moderngekko_launcher.cpp
+echo   lib\ModernGekko\tools\moderngekko_port.cpp
 echo   lib\ModernGekko\tools\moderngekko_run.cpp
 echo   lib\ModernGekko\vendor\dolphin\Data\Sys\GameSettings\GC6E01.ini
 echo   lib\ModernGekko\vendor\dolphin\GXRuntime\include\core\cpu.h
