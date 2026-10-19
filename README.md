@@ -10,10 +10,14 @@ Not affiliated with, endorsed by, or sponsored by Nintendo, Creatures, GAME FREA
 
 1. You pick a disc image.
 2. It extracts the disc, reading the filesystem through Dolphin's DiscIO code.
-3. It runs DolRecomp on the extracted main DOL and compiles the generated C into a module for that disc.
-4. It loads the module in ModernGekko's runtime and starts the game.
+3. It pulls the 168 REL overlays out of the FSYS archives. They are not loose files on the disc, so they need their own extraction step.
+4. It runs DolRecomp on the extracted main DOL and compiles the generated C into a module for that disc.
+5. It puts the runtime Sys data beside the runner, including the game settings that carry this game's patch codes.
+6. It loads the module in ModernGekko's runtime and starts the game.
 
 The module is built from your image on your machine. It is cached against the DOL hash, so a second start with the same disc skips the build entirely.
+
+Steps 3 and 5 are the two that are easy to leave out, and both are quiet when they are missing. Without the REL overlays the intro drops frames. Without the game settings the patch codes never apply, which shows up as corrupted text on the character naming screen and no widescreen.
 
 ## What you download
 
@@ -26,7 +30,7 @@ One archive, `colosseum-launcher-2.zip`, 207.4 MiB. Everything the launcher need
 | `msvcp140.dll`, `msvcp140_atomic_wait.dll`, `vcruntime140.dll`, `vcruntime140_1.dll` | the MSVC runtime the two exes import, deployed app-local |
 | `components.txt` | what the two component archives are, with the digest of each |
 | `colosseum-toolchain-16.2.0-ucrt-r3.zip` | GCC 16.2.0 (winlibs, UCRT, MinGW-w64 14.0.0), CMake 4.4.3, Ninja 1.13.2, CPython 3.13.16 |
-| `colosseum-tools-4.zip` | `moderngekko-port.exe`, `dolrecomp.exe`, the module template, GXRuntime, the StaticRecomp ABI headers |
+| `colosseum-tools-4.zip` | `moderngekko-port.exe`, `dolrecomp.exe`, the module template, GXRuntime, the StaticRecomp ABI headers, and the runtime Sys data the launcher deploys beside the runner |
 | `licences/` | the GPL-3.0 text, an index of what covers what, and a written offer of source |
 | `THIRD-PARTY-NOTICES.txt` | the MSVC runtime notice |
 
@@ -34,7 +38,7 @@ Unzip it where you want the install to live, then run `ColosseumRecomp.exe` from
 
 The archives stay where they are. They are read from the install folder, verified, unpacked, and left alone, so the same folder can set up a second user directory or be copied to another machine. If one of them is missing, the launcher names the file it wanted and stops.
 
-Sizes, measured from the shipped archives: the toolchain is 178.9 MiB zipped and 655.7 MiB unpacked, the tools archive is 17.5 MiB zipped and 42.3 MiB unpacked.
+Sizes, measured from the shipped archives: the toolchain is 178.9 MiB zipped and 655.7 MiB unpacked, the tools archive is 17.5 MiB zipped and 42.5 MiB unpacked.
 
 ## What you need
 
@@ -76,7 +80,7 @@ The launcher ships without a compiler, so the compiler and the recompiler travel
     sha256    lowercase hex digest of that zip
     probe     file inside the zip whose presence means the component is ready
 
-Two components are used. `toolchain` is the GCC that compiles the module. `tools` carries `moderngekko-port.exe`, the recompiler driver.
+Two components are used. `toolchain` is the GCC that compiles the module. `tools` carries `moderngekko-port.exe`, the recompiler driver, and the runtime Sys data the launcher deploys beside the runner.
 
 The third field is a bare file name in the shipped bundle. The parser still accepts an `http(s)://` URL there and will download it if one is given, which is there for a hosted copy of the same archives. The bundle does not use that path and needs no network.
 
@@ -120,7 +124,7 @@ Those are the values from the CMake cache of the shipped build, quoted as they a
     MODERNGEKKO_REQUIRED_DISC_ID:STRING=GC6E01
     MODERNGEKKO_GAMECUBE_CONTROLLERS:BOOL=ON
 
-The CMake target names do not change, only the file names they produce. Both binaries land in `lib/ModernGekko/build` as `ColosseumRecomp.exe` and `ColosseumRecompRun.exe`. Keep them in the same folder, because the launcher starts the runner from beside itself. The module it builds is published beside them too, and the runner looks there first.
+The CMake target names do not change, only the file names they produce. Both binaries land in `lib/ModernGekko/build` as `ColosseumRecomp.exe` and `ColosseumRecompRun.exe`. Keep them in the same folder, because the launcher starts the runner from beside itself. The module it builds, and the runtime Sys data, are placed beside them too, and the runner looks there first.
 
 Leave the flags out and you get stock ModernGekko: `ModernGekko.exe` and `moderngekko-run.exe`, state in `%LOCALAPPDATA%\moderngekko`, and no disc id restriction, so the picker will accept any GameCube image it can read.
 
