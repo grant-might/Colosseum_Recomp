@@ -21,7 +21,7 @@ Steps 3 and 5 are the two that are easy to leave out, and both are quiet when th
 
 ## What you download
 
-One archive, `colosseum-launcher-2.zip`, 207.4 MiB. Everything the launcher needs to build is inside it, and none of it touches the network.
+One archive, `launcher.zip`, 207.4 MiB. Everything the launcher needs to build is inside it, and none of it touches the network. The names carry no version: the version each component ships as is in `components.txt`, which is also the manifest the launcher reads.
 
 | path inside the archive | what it is |
 |---|---|
@@ -29,8 +29,8 @@ One archive, `colosseum-launcher-2.zip`, 207.4 MiB. Everything the launcher need
 | `ColosseumRecompRun.exe` | the runner it starts |
 | `msvcp140.dll`, `msvcp140_atomic_wait.dll`, `vcruntime140.dll`, `vcruntime140_1.dll` | the MSVC runtime the two exes import, deployed app-local |
 | `components.txt` | what the two component archives are, with the digest of each |
-| `colosseum-toolchain-16.2.0-ucrt-r3.zip` | GCC 16.2.0 (winlibs, UCRT, MinGW-w64 14.0.0), CMake 4.4.3, Ninja 1.13.2, CPython 3.13.16 |
-| `colosseum-tools-4.zip` | `moderngekko-port.exe`, `dolrecomp.exe`, the module template, GXRuntime, the StaticRecomp ABI headers, and the runtime Sys data the launcher deploys beside the runner |
+| `toolchain.zip` | GCC 16.2.0 (winlibs, UCRT, MinGW-w64 14.0.0), CMake 4.4.3, Ninja 1.13.2, CPython 3.13.16 |
+| `tools.zip` | `moderngekko-port.exe`, `dolrecomp.exe`, the module template, GXRuntime, the StaticRecomp ABI headers, and the runtime Sys data the launcher deploys beside the runner |
 | `licences/` | the GPL-3.0 text, an index of what covers what, and a written offer of source |
 | `THIRD-PARTY-NOTICES.txt` | the MSVC runtime notice |
 
